@@ -1,29 +1,15 @@
 # Twilio Flex + Multiple WABAs reference blueprint
 
-This repository contains a self-contained reference-architecture page for a hub-and-spoke approach to connecting one Twilio Flex account to multiple WhatsApp Business Accounts.
-
-Open [`index.html`](./index.html) directly, or preview it through any static web server:
-
-```bash
-python3 -m http.server 4173
-```
-
-Then visit:
-
-```text
-http://localhost:4173/
-```
-
-The page has no external runtime dependencies and can be published on GitHub Pages or another static host as-is.
+[View the published blueprint](https://rbangueses.github.io/flex-multi-waba-reference-blueprint/)
 
 ## What the blueprint covers
 
-- One Flex hub with N WABA-specific Twilio subaccount spokes
+- One Flex hub with multiple WABA-specific Twilio subaccounts
 - Inbound and outbound message paths
-- Queue-bound, context-derived, agent-selectable and hybrid sender policies
-- A canonical WABA context contract
-- Per-subaccount template discovery and the WhatsApp 24-hour service window
-- Data ownership, security, reliability and long-lived task handling
-- Production checklist and logical reference endpoints
+- Queue-based, context-based, agent-selectable and hybrid sender assignment
+- The data needed to keep each task, conversation and message tied to the correct WABA
+- Template discovery and the WhatsApp 24-hour customer service window
+- Account responsibilities, credentials and webhook validation
+- Adding or removing WABAs, acceptance tests and go-live checks
 
-This is a solution pattern, not a deployable Flex plugin or a statement that the logical reference endpoints are provided out of the box by Twilio.
+This is a solution pattern, not a deployable Flex plugin or a statement that the example integration endpoints are provided by Twilio.
