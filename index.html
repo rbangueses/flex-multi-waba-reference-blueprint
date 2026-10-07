@@ -1,0 +1,1297 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="An implementation blueprint for connecting one Twilio Flex account to multiple WhatsApp Business Accounts through a hub-and-spoke integration.">
+  <title>Implementation Blueprint | Twilio Flex + Multiple WABAs</title>
+  <style>
+    :root {
+      --ink: #0b172a;
+      --ink-2: #14243d;
+      --twilio-red: #f22f46;
+      --twilio-red-dark: #c92338;
+      --red-soft: #fff0f2;
+      --sky: #0f93c8;
+      --sky-soft: #eaf8fd;
+      --green: #087f5b;
+      --green-soft: #eaf7f2;
+      --amber: #a15c00;
+      --amber-soft: #fff6df;
+      --text: #24344d;
+      --muted: #66758c;
+      --line: #dce3ec;
+      --line-dark: #bcc7d5;
+      --surface: #f6f8fb;
+      --white: #fff;
+      --nav-width: 292px;
+      --content-width: 1120px;
+      --radius: 10px;
+      --shadow: 0 18px 50px rgba(11, 23, 42, .09);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 36px; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: var(--white);
+      font-family: "Inter", "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; }
+    button { font: inherit; }
+    code, .mono {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: .9em;
+    }
+    :focus-visible { outline: 3px solid rgba(15, 147, 200, .42); outline-offset: 3px; }
+
+    .mobile-bar {
+      display: none;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 18px;
+      color: white;
+      background: var(--ink);
+    }
+    .mobile-bar strong { font-size: .92rem; }
+    .menu-toggle {
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: 6px;
+      padding: 6px 10px;
+      color: white;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .side-nav {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 40;
+      width: var(--nav-width);
+      overflow-y: auto;
+      padding: 34px 30px 40px;
+      color: #dbe4ef;
+      background: var(--ink);
+    }
+    .nav-kicker {
+      margin: 0 0 12px;
+      color: #94a6bc;
+      font-size: .7rem;
+      font-weight: 800;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+    }
+    .nav-title {
+      margin: 0 0 28px;
+      color: white;
+      font-size: 1.2rem;
+      line-height: 1.25;
+    }
+    .nav-rule { height: 1px; margin: 0 0 22px; background: rgba(255,255,255,.12); }
+    .side-nav ul { margin: 0; padding: 0; list-style: none; }
+    .side-nav li + li { margin-top: 4px; }
+    .side-nav .nav-group + .nav-group { margin-top: 18px; }
+    .nav-group-title {
+      margin: 0 0 5px 13px;
+      color: #8296ae;
+      font-size: .62rem;
+      font-weight: 850;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+    .side-nav a {
+      display: block;
+      border-left: 2px solid transparent;
+      padding: 6px 11px;
+      color: #c7d2df;
+      font-size: .875rem;
+      text-decoration: none;
+      transition: color .16s ease, border-color .16s ease, background .16s ease;
+    }
+    .side-nav a:hover,
+    .side-nav a.active {
+      border-left-color: var(--twilio-red);
+      color: white;
+      background: rgba(255,255,255,.055);
+    }
+    .nav-foot {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,.12);
+      color: #8fa2b9;
+      font-size: .73rem;
+      line-height: 1.5;
+    }
+
+    main { margin-left: var(--nav-width); }
+    .section {
+      width: min(calc(100% - 80px), var(--content-width));
+      margin: 0 auto;
+      padding: 88px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .section:last-child { border-bottom: 0; }
+    .section-label {
+      margin: 0 0 12px;
+      color: var(--twilio-red-dark);
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3, h4 { margin: 0; color: var(--ink); line-height: 1.16; }
+    h1 { max-width: 820px; font-size: clamp(2.65rem, 5vw, 5.25rem); letter-spacing: -.055em; }
+    h2 { font-size: clamp(2rem, 3vw, 3.05rem); letter-spacing: -.04em; }
+    h3 { font-size: 1.18rem; letter-spacing: -.018em; }
+    h4 { font-size: 1rem; }
+    p { margin: 0; }
+    .lede {
+      display: block;
+      width: 100%;
+      max-width: none;
+      margin: 20px 0 0;
+      color: #43536a;
+      font-size: 1.16rem;
+      line-height: 1.72;
+      text-align: left;
+    }
+    .section-intro { display: block; width: 100%; max-width: none; margin: 16px 0 0; color: var(--muted); font-size: 1.04rem; text-align: left; }
+
+    .hero {
+      min-height: 760px;
+      padding-top: 102px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::after {
+      content: "1 : N";
+      position: absolute;
+      z-index: -1;
+      right: -35px;
+      top: 42px;
+      color: #f7f8fa;
+      font-size: clamp(9rem, 18vw, 17rem);
+      font-weight: 900;
+      letter-spacing: -.09em;
+      line-height: 1;
+    }
+    .hero-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+    .hero-tag {
+      border: 1px solid var(--line-dark);
+      border-radius: 999px;
+      padding: 4px 10px;
+      color: #56667b;
+      background: white;
+      font-size: .75rem;
+      font-weight: 700;
+    }
+    .hero-summary {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 24px;
+      margin-top: 52px;
+    }
+    .outcomes, .principle {
+      min-height: 192px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 28px;
+      background: var(--surface);
+    }
+    .outcomes h2, .principle h2 {
+      margin-bottom: 16px;
+      font-size: .78rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .outcomes ul { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 28px; margin: 0; padding: 0; list-style: none; }
+    .outcomes li { position: relative; padding-left: 19px; font-size: .94rem; }
+    .outcomes li::before { content: ""; position: absolute; left: 0; top: .68em; width: 7px; height: 7px; border-radius: 50%; background: var(--twilio-red); }
+    .principle { color: #f4f7fb; background: var(--ink); border-color: var(--ink); }
+    .principle h2 { color: #9fb0c5; }
+    .principle p { font-size: 1rem; line-height: 1.7; }
+    .principle strong { color: white; }
+
+    .benefit-grid, .cards-4 {
+      display: grid;
+      gap: 18px;
+      margin-top: 36px;
+    }
+    .benefit-grid { grid-template-columns: repeat(4, 1fr); }
+    .cards-4 { grid-template-columns: repeat(4, 1fr); }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 25px;
+      background: white;
+    }
+    .card h3 { margin-bottom: 10px; }
+    .card p { color: var(--muted); font-size: .9rem; }
+    .card-icon {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      margin-bottom: 18px;
+      border-radius: 8px;
+      color: var(--twilio-red-dark);
+      background: var(--red-soft);
+      font-weight: 900;
+    }
+
+    .callout {
+      margin-top: 28px;
+      border-left: 4px solid var(--twilio-red);
+      padding: 18px 22px;
+      color: #4a596e;
+      background: var(--red-soft);
+      font-size: .94rem;
+    }
+    .callout strong { color: var(--ink); }
+    .callout.blue { border-left-color: var(--sky); background: var(--sky-soft); }
+    .callout.green { border-left-color: var(--green); background: var(--green-soft); }
+
+    .account-map {
+      margin: 30px 0 0;
+      border: 1px solid var(--line-dark);
+      border-radius: 14px;
+      overflow: hidden;
+      background: white;
+    }
+    .account-map-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      border-bottom: 1px solid var(--line);
+      padding: 13px 18px;
+      background: var(--surface);
+    }
+    .account-map-header strong { color: var(--ink); font-size: .85rem; }
+    .account-map-key { display: flex; flex-wrap: wrap; gap: 14px; color: var(--muted); font-size: .7rem; }
+    .account-map-key span { display: inline-flex; align-items: center; gap: 6px; }
+    .account-map-key i { width: 21px; height: 3px; border-radius: 99px; }
+    .account-map-key .outbound-key { background: var(--twilio-red); }
+    .account-map-key .inbound-key { background: var(--sky); }
+    .account-map-stage {
+      position: relative;
+      height: 360px;
+      background-image: radial-gradient(#d9e0e9 .7px, transparent .7px);
+      background-size: 15px 15px;
+    }
+    .account-map-lines { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; pointer-events: none; }
+    .account-map-lines > path { fill: none; stroke-width: 3; stroke-linecap: round; }
+    .account-map-lines .map-outbound { stroke: var(--twilio-red); }
+    .account-map-lines .map-inbound { stroke: var(--sky); }
+    .account-map-lines text { font: 700 11px "Inter", "Avenir Next", "Segoe UI", sans-serif; letter-spacing: .02em; }
+    .account-map-lines .outbound-text { fill: var(--twilio-red-dark); }
+    .account-map-lines .inbound-text { fill: #0879a8; }
+    .account-node {
+      position: absolute;
+      z-index: 2;
+      border: 1px solid var(--line-dark);
+      border-radius: 10px;
+      padding: 19px;
+      background: white;
+      box-shadow: 0 9px 22px rgba(11,23,42,.08);
+    }
+    .account-node-label { margin-bottom: 7px; color: var(--muted); font-size: .65rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .account-node h3 { font-size: 1.04rem; }
+    .account-node p { margin-top: 8px; color: var(--muted); font-size: .77rem; line-height: 1.48; }
+    .account-node ul { margin: 10px 0 0; padding-left: 17px; color: #586a80; font-size: .74rem; line-height: 1.48; }
+    .account-node-flex { left: 4%; top: 104px; width: 26%; min-height: 150px; border-top: 4px solid var(--twilio-red); }
+    .account-node-router { left: 37%; top: 90px; width: 26%; min-height: 178px; border: 2px solid var(--ink); background: #fbfcfe; }
+    .account-node-router .account-node-label { color: var(--twilio-red-dark); }
+    .account-stack { position: absolute; z-index: 2; right: 4%; top: 32px; width: 25%; display: grid; gap: 10px; }
+    .subaccount-node { border: 1px solid var(--line-dark); border-left: 4px solid var(--sky); border-radius: 9px; padding: 12px 15px; background: white; box-shadow: 0 7px 18px rgba(11,23,42,.07); }
+    .subaccount-node span { display: block; color: #0879a8; font-size: .62rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .subaccount-node strong { display: block; margin-top: 2px; color: var(--ink); font-size: .86rem; }
+    .subaccount-node small { color: var(--muted); font-size: .68rem; }
+    .account-map-mobile-flow { display: none; }
+    .account-map-note { border-top: 1px solid var(--line); padding: 14px 18px; color: var(--muted); font-size: .78rem; }
+    .account-map-note strong { color: var(--ink); }
+
+    .flow-controls {
+      display: inline-flex;
+      gap: 4px;
+      margin: 30px 0 18px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 4px;
+      background: var(--surface);
+    }
+    .flow-button {
+      border: 0;
+      border-radius: 6px;
+      padding: 8px 13px;
+      color: #596a80;
+      background: transparent;
+      font-size: .82rem;
+      font-weight: 750;
+      cursor: pointer;
+    }
+    .flow-button[aria-pressed="true"] { color: white; background: var(--ink); }
+
+    .architecture-shell {
+      border: 1px solid var(--line-dark);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      background: white;
+    }
+    .architecture-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      border-bottom: 1px solid var(--line);
+      padding: 14px 18px;
+      background: var(--surface);
+    }
+    .architecture-header strong { color: var(--ink); font-size: .86rem; }
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; color: #617087; font-size: .72rem; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i { width: 22px; height: 3px; border-radius: 99px; background: var(--line-dark); }
+    .legend .in { background: var(--sky); }
+    .legend .out { background: var(--twilio-red); }
+    .legend .meta { height: 0; border-top: 2px dashed var(--amber); background: transparent; }
+
+    .diagram-stage {
+      position: relative;
+      min-height: 650px;
+      padding: 38px 32px;
+      background-image: radial-gradient(#d9e0e9 .7px, transparent .7px);
+      background-size: 15px 15px;
+    }
+    .zone {
+      position: absolute;
+      left: 2.5%;
+      right: 2.5%;
+      border: 2px dashed;
+      border-radius: 14px;
+      pointer-events: none;
+    }
+    .zone::before {
+      position: absolute;
+      top: -13px;
+      left: 20px;
+      padding: 1px 8px;
+      background: white;
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .hub-zone { top: 28px; height: 272px; border-color: rgba(242,47,70,.56); }
+    .hub-zone::before { content: "Flex hub account"; color: var(--twilio-red-dark); }
+    .spoke-zone { top: 348px; bottom: 30px; border-color: rgba(15,147,200,.58); }
+    .spoke-zone::before { content: "WABA subaccounts · repeat 1…N"; color: #0879a8; }
+    .diagram-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .diagram-lines path { fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-width: 3; transition: opacity .2s ease, stroke-width .2s ease; }
+    .diagram-lines .inbound-line { stroke: var(--sky); }
+    .diagram-lines .outbound-line { stroke: var(--twilio-red); }
+    .diagram-lines .meta-line { stroke: var(--amber); stroke-width: 2; stroke-dasharray: 7 6; }
+    .diagram-stage[data-flow="inbound"] .outbound-line,
+    .diagram-stage[data-flow="inbound"] .meta-line { opacity: .12; }
+    .diagram-stage[data-flow="outbound"] .inbound-line { opacity: .12; }
+    .diagram-stage[data-flow="both"] path { opacity: .9; }
+
+    .node {
+      position: absolute;
+      z-index: 3;
+      width: 25%;
+      min-height: 148px;
+      border: 1px solid var(--line-dark);
+      border-radius: 11px;
+      padding: 18px;
+      background: white;
+      box-shadow: 0 10px 24px rgba(11,23,42,.08);
+      transition: opacity .2s ease, transform .2s ease;
+    }
+    .node-label { margin-bottom: 6px; color: var(--muted); font-size: .67rem; font-weight: 850; letter-spacing: .09em; text-transform: uppercase; }
+    .node h3 { font-size: 1rem; }
+    .node p { margin-top: 8px; color: #65758a; font-size: .76rem; line-height: 1.45; }
+    .node ul { margin: 9px 0 0; padding-left: 16px; color: #65758a; font-size: .73rem; line-height: 1.5; }
+    .node-flex { left: 5%; top: 83px; }
+    .node-orchestrator { left: 37.5%; top: 68px; border: 2px solid var(--twilio-red); background: #fffafb; }
+    .node-interactions { right: 5%; top: 83px; }
+    .node-spoke-a { left: 5%; top: 408px; border-top: 4px solid var(--sky); }
+    .node-spoke-b { left: 37.5%; top: 408px; border-top: 4px solid var(--sky); }
+    .node-spoke-n { right: 5%; top: 408px; border-top: 4px solid var(--sky); }
+    .node-orchestrator .mini-modules { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+    .mini-modules span { border-radius: 4px; padding: 3px 6px; color: #5b4b37; background: var(--amber-soft); font-size: .63rem; font-weight: 700; }
+    .spoke-badge { display: inline-block; margin-top: 10px; border-radius: 999px; padding: 3px 8px; color: #086b93; background: var(--sky-soft); font-size: .66rem; font-weight: 800; }
+    .architecture-caption { padding: 17px 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; }
+    .architecture-caption strong { color: var(--ink); }
+
+    .implementation-stage {
+      padding: 20px;
+      background: #f7f9fc;
+    }
+    .path-row {
+      display: grid;
+      grid-template-columns: 142px minmax(0, 1fr);
+      gap: 16px;
+      margin-bottom: 14px;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--line-dark);
+      border-radius: 10px;
+      padding: 15px;
+      overflow-x: auto;
+      background: white;
+      transition: opacity .18s ease;
+    }
+    .path-row:last-of-type { margin-bottom: 0; }
+    .path-row[data-path="inbound"] { border-left-color: var(--sky); }
+    .path-row[data-path="outbound"] { border-left-color: var(--twilio-red); }
+    .path-row[data-path="templates"] { border-left-color: var(--amber); }
+    .path-row[data-path="status"] { border-left-color: var(--green); }
+    .path-summary { align-self: center; }
+    .path-summary span { display: block; margin-bottom: 4px; font-size: .66rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .path-row[data-path="inbound"] .path-summary span { color: #0879a8; }
+    .path-row[data-path="outbound"] .path-summary span { color: var(--twilio-red-dark); }
+    .path-row[data-path="templates"] .path-summary span { color: var(--amber); }
+    .path-row[data-path="status"] .path-summary span { color: var(--green); }
+    .path-summary strong { display: block; color: var(--ink); font-size: .87rem; line-height: 1.35; }
+    .path-summary small { display: block; margin-top: 5px; color: var(--muted); font-size: .7rem; line-height: 1.4; }
+    .path-steps {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(128px, 1fr));
+      gap: 21px;
+      min-width: 760px;
+      align-items: stretch;
+    }
+    .path-node {
+      position: relative;
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--line-dark);
+      border-radius: 8px;
+      padding: 12px;
+      background: white;
+    }
+    .path-node:not(:last-child)::after {
+      content: "›";
+      position: absolute;
+      right: -17px;
+      top: 50%;
+      color: #94a1b2;
+      font-size: 1.22rem;
+      font-weight: 900;
+      line-height: 1;
+      transform: translateY(-55%);
+    }
+    .path-node.owner-flex { border-top-color: var(--ink); }
+    .path-node.owner-service { border-top-color: var(--twilio-red); }
+    .path-node.owner-spoke { border-top-color: var(--sky); }
+    .path-node.owner-external { border-top-color: var(--green); }
+    .path-node-tag { display: block; margin-bottom: 7px; color: var(--muted); font-size: .57rem; font-weight: 850; letter-spacing: .075em; text-transform: uppercase; }
+    .path-node h3 { font-size: .78rem; line-height: 1.28; }
+    .path-node p { margin-top: 6px; color: var(--muted); font-size: .66rem; line-height: 1.42; }
+    .path-node code { color: #8d2636; font-size: .92em; }
+    .path-node .endpoint-label { display: block; line-height: 1.34; }
+    .path-node .endpoint-method,
+    .path-node .endpoint-route { display: block; }
+    .path-node .endpoint-route { overflow-wrap: anywhere; }
+    .implementation-stage[data-flow="inbound"] .path-row:not([data-path="inbound"]),
+    .implementation-stage[data-flow="outbound"] .path-row:not([data-path="outbound"]),
+    .implementation-stage[data-flow="templates"] .path-row:not([data-path="templates"]),
+    .implementation-stage[data-flow="status"] .path-row:not([data-path="status"]) { opacity: .18; }
+    .component-key { display: flex; flex-wrap: wrap; gap: 12px; color: var(--muted); font-size: .68rem; }
+    .component-key span { display: inline-flex; align-items: center; gap: 5px; }
+    .component-key i { width: 8px; height: 8px; border-radius: 50%; background: var(--line-dark); }
+    .component-key .key-flex { background: var(--ink); }
+    .component-key .key-service { background: var(--twilio-red); }
+    .component-key .key-spoke { background: var(--sky); }
+    .component-key .key-external { background: var(--green); }
+    .state-block {
+      margin-top: 18px;
+      border-top: 1px solid var(--line-dark);
+      padding-top: 18px;
+    }
+    .state-block > strong { display: block; margin-bottom: 11px; color: var(--ink); font-size: .78rem; }
+    .state-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .state-item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: white; }
+    .state-item strong { display: block; color: var(--ink); font-size: .72rem; }
+    .state-item p { margin-top: 4px; color: var(--muted); font-size: .64rem; line-height: 1.42; }
+
+    .policy-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-top: 34px;
+    }
+    .policy-card {
+      position: relative;
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--line-dark);
+      border-radius: var(--radius);
+      padding: 22px;
+      background: white;
+    }
+    .policy-card h3 { margin-bottom: 9px; }
+    .policy-card p { color: var(--muted); font-size: .86rem; }
+    .policy-card .best-for { display: block; margin-top: 14px; color: #495a70; font-size: .72rem; font-weight: 750; }
+    .policy-tag { display: inline-block; margin-bottom: 13px; border-radius: 999px; padding: 3px 8px; color: var(--twilio-red-dark); background: var(--red-soft); font-size: .66rem; font-weight: 850; }
+
+    .workflow { position: relative; margin-top: 38px; }
+    .workflow::before { content: ""; position: absolute; left: 23px; top: 24px; bottom: 24px; width: 2px; background: var(--line); }
+    .step { position: relative; display: grid; grid-template-columns: 48px 1fr; gap: 20px; padding: 0 0 28px; }
+    .step:last-child { padding-bottom: 0; }
+    .step-number { z-index: 1; display: grid; place-items: center; width: 48px; height: 48px; border: 2px solid var(--twilio-red); border-radius: 50%; color: var(--twilio-red-dark); background: white; font-size: .8rem; font-weight: 900; }
+    .step-body { border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 21px; background: white; }
+    .step-body h3 { margin-bottom: 6px; }
+    .step-body p { color: var(--muted); font-size: .9rem; }
+    .step-body code { color: #8b2431; background: var(--red-soft); }
+
+    .contract-layout { display: grid; grid-template-columns: .85fr 1.15fr; gap: 26px; margin-top: 36px; align-items: start; }
+    .contract-copy { border-radius: var(--radius); padding: 26px; color: #dae4ef; background: var(--ink); }
+    .contract-copy h3 { margin-bottom: 12px; color: white; }
+    .contract-copy p { color: #adbdcf; font-size: .91rem; }
+    .contract-copy ul { margin: 18px 0 0; padding-left: 20px; color: #d2dce7; font-size: .86rem; }
+    .code-card { overflow: auto; border: 1px solid var(--line-dark); border-radius: var(--radius); background: #0f1d31; }
+    .code-card-header { display: flex; align-items: center; gap: 7px; padding: 11px 14px; border-bottom: 1px solid #273953; color: #9fb0c4; font-size: .72rem; }
+    .code-card-header i { width: 8px; height: 8px; border-radius: 50%; background: #65758a; }
+    pre { margin: 0; padding: 20px; color: #d8e4ef; font-size: .78rem; line-height: 1.62; }
+    .code-key { color: #8bd5ff; }
+    .code-string { color: #ffb3bc; }
+    .code-comment { color: #6f8298; }
+
+    .mode-table, .endpoint-table { width: 100%; margin-top: 34px; border-collapse: collapse; font-size: .86rem; }
+    .mode-table th, .endpoint-table th { padding: 12px 15px; color: #53647a; background: var(--surface); font-size: .67rem; letter-spacing: .09em; text-align: left; text-transform: uppercase; }
+    .mode-table td, .endpoint-table td { border-top: 1px solid var(--line); padding: 15px; vertical-align: top; }
+    .mode-table tr:last-child td, .endpoint-table tr:last-child td { border-bottom: 1px solid var(--line); }
+    .mode-table td:first-child, .endpoint-table td:first-child { color: var(--ink); font-weight: 750; }
+    .mode-table code, .endpoint-table code { color: #9f2638; }
+    .owner-pill { display: inline-block; border-radius: 99px; padding: 3px 8px; background: var(--sky-soft); color: #08749f; font-size: .69rem; font-weight: 800; white-space: nowrap; }
+
+    .template-model {
+      display: grid;
+      grid-template-columns: minmax(0, 560px);
+      gap: 18px;
+      margin-top: 34px;
+    }
+    .template-card { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+    .template-card-header { padding: 17px 20px; color: white; background: var(--ink); }
+    .template-card-header h3 { color: white; }
+    .template-card-header span { color: #a9b9ca; font-size: .7rem; }
+    .template-card-body { padding: 20px; }
+    .template-card-body p { color: var(--muted); font-size: .86rem; }
+    .template-card-body ul { margin: 14px 0 0; padding-left: 18px; color: #53647a; font-size: .82rem; }
+
+    .checklist { max-width: 840px; margin-top: 34px; }
+    .checklist-group { min-width: 0; }
+    .checklist-group-header { padding-bottom: 16px; border-bottom: 2px solid var(--ink); }
+    .checklist-group-header h3 { margin-bottom: 6px; font-size: 1.12rem; }
+    .checklist-group-header p { color: var(--muted); font-size: .83rem; }
+    .check-item { display: grid; grid-template-columns: 26px 1fr; gap: 12px; border-bottom: 1px solid var(--line); padding: 14px 0; }
+    .check-item::before { content: "✓"; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: var(--green); background: var(--green-soft); font-size: .72rem; font-weight: 900; }
+    .check-item p { color: #506178; font-size: .86rem; }
+
+    .decision-table-wrap, .table-wrap { margin-top: 34px; overflow-x: auto; }
+    .decision-table-wrap .mode-table, .table-wrap .mode-table, .table-wrap .endpoint-table { margin-top: 0; }
+    .lifecycle-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 34px; }
+    .lifecycle-card { position: relative; border: 1px solid var(--line); border-top: 4px solid var(--sky); border-radius: var(--radius); padding: 22px; background: white; }
+    .lifecycle-card::after { content: "\2192"; position: absolute; right: -13px; top: 26px; z-index: 2; color: #93a2b5; font-weight: 900; }
+    .lifecycle-card:last-child::after { display: none; }
+    .lifecycle-card span { display: block; margin-bottom: 9px; color: #0879a8; font-size: .68rem; font-weight: 850; }
+    .lifecycle-card h3 { margin-bottom: 8px; }
+    .lifecycle-card p { color: var(--muted); font-size: .84rem; }
+    .code-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 26px; }
+    .runbook { margin-top: 34px; counter-reset: runbook; }
+    .runbook-item { counter-increment: runbook; display: grid; grid-template-columns: 44px 1fr; gap: 16px; border-top: 1px solid var(--line); padding: 18px 0; }
+    .runbook-item:last-child { border-bottom: 1px solid var(--line); }
+    .runbook-item::before { content: counter(runbook); display: grid; place-items: center; width: 36px; height: 36px; border-radius: 8px; color: white; background: var(--ink); font-size: .76rem; font-weight: 850; }
+    .runbook-item h3 { margin-bottom: 5px; font-size: 1rem; }
+    .runbook-item p { color: var(--muted); font-size: .86rem; }
+    footer { margin-left: var(--nav-width); padding: 26px 40px; color: #8191a5; background: var(--ink); font-size: .76rem; text-align: center; }
+
+    @media (max-width: 1180px) {
+      :root { --nav-width: 248px; }
+      .side-nav { padding-left: 24px; padding-right: 24px; }
+      .section { width: min(calc(100% - 48px), var(--content-width)); }
+      .benefit-grid, .policy-grid, .lifecycle-grid { grid-template-columns: repeat(2, 1fr); }
+      .cards-4 { grid-template-columns: repeat(2, 1fr); }
+      .node { width: 27%; }
+      .node-orchestrator, .node-spoke-b { left: 36.5%; }
+    }
+
+    @media (max-width: 860px) {
+      .mobile-bar { display: flex; }
+      .side-nav { transform: translateX(-100%); transition: transform .2s ease; }
+      body.nav-open .side-nav { transform: translateX(0); }
+      main, footer { margin-left: 0; }
+      .section { width: min(calc(100% - 36px), var(--content-width)); padding: 68px 0; }
+      .hero { min-height: auto; padding-top: 70px; }
+      .hero-summary, .contract-layout { grid-template-columns: 1fr; }
+      .benefit-grid, .policy-grid { grid-template-columns: repeat(2, 1fr); }
+      .diagram-stage { min-height: auto; padding: 42px 22px 30px; }
+      .zone, .diagram-lines { display: none; }
+      .node { position: relative; inset: auto; width: auto; min-height: auto; margin-bottom: 14px; }
+      .node-spoke-a { margin-top: 36px; }
+      .architecture-header { align-items: flex-start; flex-direction: column; }
+      .account-map-stage { height: auto; padding: 28px 22px; }
+      .account-map-lines { display: none; }
+      .account-node, .account-stack { position: relative; inset: auto; width: auto; min-height: auto; }
+      .account-stack { margin-top: 0; }
+      .account-map-mobile-flow { display: block; padding: 10px 0; color: var(--muted); font-size: .73rem; font-weight: 750; text-align: center; }
+      .account-map-mobile-flow b:first-child { color: var(--twilio-red-dark); }
+      .account-map-mobile-flow b:last-child { color: #0879a8; }
+      .path-row { grid-template-columns: 1fr; overflow: visible; }
+      .path-steps { grid-template-columns: 1fr; min-width: 0; gap: 22px; }
+      .path-node:not(:last-child)::after { content: "↓"; right: auto; left: 50%; top: auto; bottom: -20px; transform: translateX(-50%); }
+      .state-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 580px) {
+      .section { width: min(calc(100% - 28px), var(--content-width)); padding: 54px 0; }
+      h1 { font-size: 2.7rem; }
+      .hero::after { display: none; }
+      .hero-summary, .outcomes ul, .benefit-grid, .cards-4, .policy-grid, .template-model, .lifecycle-grid, .code-pair { grid-template-columns: 1fr; }
+      .lifecycle-card::after { content: "\2193"; right: auto; left: 50%; top: auto; bottom: -17px; transform: translateX(-50%); }
+      .outcomes, .principle { padding: 22px; }
+      .flow-controls { display: flex; }
+      .flow-button { flex: 1; padding-left: 8px; padding-right: 8px; }
+      .mode-table, .endpoint-table { display: block; overflow-x: auto; white-space: nowrap; }
+      .account-map-header { align-items: flex-start; flex-direction: column; }
+      .state-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+    }
+
+    @media print {
+      .side-nav, .mobile-bar, .flow-controls { display: none !important; }
+      main, footer { margin-left: 0; }
+      .section { width: 100%; padding: 34px 0; break-inside: avoid; }
+      .architecture-shell { box-shadow: none; }
+      footer { color: var(--text); background: white; }
+    }
+  </style>
+</head>
+<body>
+  <div class="mobile-bar">
+    <strong>Flex + Multiple WABAs</strong>
+    <button class="menu-toggle" type="button" aria-controls="sideNav" aria-expanded="false">Menu</button>
+  </div>
+
+  <nav class="side-nav" id="sideNav" aria-label="Document navigation">
+    <p class="nav-kicker">Implementation blueprint</p>
+    <p class="nav-title">Twilio Flex +<br>Multiple WABAs</p>
+    <div class="nav-rule"></div>
+    <div class="nav-group">
+      <p class="nav-group-title">Understand</p>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#benefits">Operating model</a></li>
+        <li><a href="#decisions">Decisions to confirm</a></li>
+        <li><a href="#architecture">Message paths</a></li>
+      </ul>
+    </div>
+    <div class="nav-group">
+      <p class="nav-group-title">Design</p>
+      <ul>
+        <li><a href="#lifecycle">Flex work and history</a></li>
+        <li><a href="#context">Data contracts</a></li>
+        <li><a href="#selection">Sender assignment</a></li>
+        <li><a href="#inbound">Inbound messages</a></li>
+        <li><a href="#outbound">Outbound messages</a></li>
+        <li><a href="#templates">WhatsApp templates</a></li>
+        <li><a href="#endpoints">Integration API</a></li>
+      </ul>
+    </div>
+    <div class="nav-group">
+      <p class="nav-group-title">Operate</p>
+      <ul>
+        <li><a href="#ownership">Responsibility</a></li>
+        <li><a href="#security">Access and credentials</a></li>
+        <li><a href="#onboarding">Add or remove a WABA</a></li>
+        <li><a href="#acceptance">Acceptance tests</a></li>
+        <li><a href="#checklist">Before launch</a></li>
+        <li><a href="#glossary">Glossary</a></li>
+      </ul>
+    </div>
+    <p class="nav-foot">Use this guide to plan the implementation. Check current Twilio and Meta behavior, account limits and compliance requirements before delivery.</p>
+  </nav>
+
+  <main>
+    <section class="section hero" id="overview">
+      <div class="hero-tags" aria-label="Blueprint topics">
+        <span class="hero-tag">Twilio Flex</span>
+        <span class="hero-tag">WhatsApp</span>
+        <span class="hero-tag">Hub and spoke</span>
+        <span class="hero-tag">One Flex · many WABAs</span>
+      </div>
+      <h1>Running multiple WhatsApp Business Accounts through one Flex instance</h1>
+      <p class="lede">This guide is for companies that use one Flex contact center across several WhatsApp Business Accounts. Each WABA keeps its own Twilio subaccount, sender and templates, while agents work from the same Flex desktop.</p>
+
+      <div class="hero-summary">
+        <div class="outcomes">
+          <h2>What this setup provides</h2>
+          <ul>
+            <li>One agent desktop for several brands or regions</li>
+            <li>Separate senders and templates for each WABA</li>
+            <li>Several ways to assign an outbound sender</li>
+            <li>Spoke-level control over senders, templates and traffic</li>
+          </ul>
+        </div>
+        <div class="principle">
+          <h2>Account model</h2>
+          <p><strong>The Flex account handles agent work and routing.</strong> Each subaccount handles WhatsApp traffic for one WABA. Every task and message keeps a reference to the WABA it belongs to.</p>
+        </div>
+      </div>
+      <div class="callout">
+        <strong>Why this needs a custom integration:</strong> the standard Flex WhatsApp setup works within one account. A backend service is needed to call the correct subaccount, and the Flex plugin needs to show the sender and templates for the WABA attached to the task.
+      </div>
+
+      <figure class="account-map">
+        <figcaption class="account-map-header">
+          <strong>Account topology and message direction</strong>
+          <span class="account-map-key" aria-label="Diagram legend">
+            <span><i class="outbound-key"></i> Outbound message</span>
+            <span><i class="inbound-key"></i> Inbound webhook</span>
+          </span>
+        </figcaption>
+        <div class="account-map-stage">
+          <svg class="account-map-lines" viewBox="0 0 1000 360" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <marker id="map-arrow-out" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="#f22f46"/></marker>
+              <marker id="map-arrow-in" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="#0f93c8"/></marker>
+            </defs>
+            <path class="map-outbound" d="M 300 147 L 370 147" marker-end="url(#map-arrow-out)"/>
+            <path class="map-outbound" d="M 630 147 L 710 147" marker-end="url(#map-arrow-out)"/>
+            <path class="map-inbound" d="M 710 216 L 630 216" marker-end="url(#map-arrow-in)"/>
+            <path class="map-inbound" d="M 370 216 L 300 216" marker-end="url(#map-arrow-in)"/>
+            <text class="outbound-text" x="318" y="132">send</text>
+            <text class="outbound-text" x="650" y="132">selected WABA</text>
+            <text class="inbound-text" x="650" y="237">webhook</text>
+            <text class="inbound-text" x="322" y="237">to Flex</text>
+          </svg>
+
+          <article class="account-node account-node-flex">
+            <p class="account-node-label">Main Twilio account</p>
+            <h3>Flex contact center</h3>
+            <ul>
+              <li>Agent desktop and plugin</li>
+              <li>Interactions and TaskRouter</li>
+              <li>WABA ID on every task</li>
+            </ul>
+          </article>
+
+          <div class="account-map-mobile-flow"><b>Outbound →</b> &nbsp; <b>← Inbound</b></div>
+
+          <article class="account-node account-node-router">
+            <p class="account-node-label">Project-owned backend</p>
+            <h3>WABA routing service</h3>
+            <ul>
+              <li>Finds the subaccount for a <code>wabaId</code></li>
+              <li>Loads account credentials</li>
+              <li>Maps messages back to Flex</li>
+            </ul>
+          </article>
+
+          <div class="account-map-mobile-flow"><b>Outbound →</b> &nbsp; <b>← Inbound</b></div>
+
+          <div class="account-stack" aria-label="WhatsApp subaccounts">
+            <div class="subaccount-node"><span>Subaccount A</span><strong>WABA · Owl Inc.</strong><small>Sender + templates + webhooks</small></div>
+            <div class="subaccount-node"><span>Subaccount B</span><strong>WABA · Owl Shoes</strong><small>Sender + templates + webhooks</small></div>
+            <div class="subaccount-node"><span>Subaccount N</span><strong>WABA · Owl Bank</strong><small>Same account contract</small></div>
+          </div>
+        </div>
+        <div class="account-map-note"><strong>Outbound:</strong> Flex sends through the selected subaccount. <strong>Inbound:</strong> each subaccount posts to the routing service, which adds the message to the Flex Conversation and routes it when an agent is needed.</div>
+      </figure>
+    </section>
+
+    <section class="section" id="benefits">
+      <p class="section-label">Operating model</p>
+      <h2>One agent desktop, separate WhatsApp accounts</h2>
+      <p class="section-intro">Flex provides the shared agent experience. The senders, templates and account configuration remain in the subaccount that owns each WABA.</p>
+      <div class="benefit-grid">
+        <article class="card">
+          <div class="card-icon">1</div>
+          <h3>Shared Flex desktop</h3>
+          <p>Agents can handle several brands in Flex. The plugin shows which business and sender are active on the task.</p>
+        </article>
+        <article class="card">
+          <div class="card-icon">N</div>
+          <h3>Add WABAs one at a time</h3>
+          <p>A new WABA is added as another subaccount entry. The Flex environment does not need to be copied.</p>
+        </article>
+        <article class="card">
+          <div class="card-icon">↕</div>
+          <h3>Choose how senders are assigned</h3>
+          <p>A sender can be fixed by team, selected from business data, chosen by the agent, or assigned using a mix of these rules.</p>
+        </article>
+        <article class="card">
+          <div class="card-icon">◇</div>
+          <h3>Keep WABA configuration separate</h3>
+          <p>Each subaccount manages its own sender, templates and account settings without changing the others.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="decisions">
+      <p class="section-label">Before you design</p>
+      <h2>Decisions to make before you start</h2>
+      <p class="section-intro">The account layout stays the same, but a few details will vary from one implementation to another. Agree these points before estimating the work.</p>
+      <div class="decision-table-wrap">
+        <table class="mode-table">
+          <thead><tr><th>Decision</th><th>Starting point in this guide</th><th>Confirm</th></tr></thead>
+          <tbody>
+            <tr><td>Conversation boundary</td><td>Use one Flex Conversation for each WABA, customer and business thread. Only that thread is limited to one active Flex task; agents can still handle other customers at the same time.</td><td>What closes a thread? When should a later message start a new one?</td></tr>
+            <tr><td>Conversation history</td><td>Show agents the transcript from the Flex Conversation. A TaskRouter task represents the work, not the history.</td><td>How long should transcripts be kept? Is a separate archive needed?</td></tr>
+            <tr><td>Customer identity</td><td>Store the normalized WhatsApp address together with <code>wabaId</code>.</td><td>Can the same person have separate identities or CRM records for different brands?</td></tr>
+            <tr><td>Media</td><td>Use the owning subaccount to retrieve inbound media, then make it available in Flex using the agreed storage rules.</td><td>File types, size limits, malware scanning, storage location and expiry.</td></tr>
+            <tr><td>Compliance and reporting</td><td>Keep the routing and display data Flex needs. Keep credentials and unnecessary customer data out of Flex.</td><td>Data location, deletion, audit, consent and reporting requirements for each WABA.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout blue"><strong>Product assumption:</strong> this blueprint uses Flex Conversations and the Interactions API.</div>
+    </section>
+
+    <section class="section" id="architecture">
+      <p class="section-label">Implementation paths</p>
+      <h2>Component-level message flow</h2>
+      <p class="section-intro">The account diagram above shows where things live. This view follows the calls made for inbound messages, agent replies, template use and delivery updates.</p>
+
+      <div class="flow-controls" role="group" aria-label="Highlight architecture flow">
+        <button class="flow-button" type="button" data-flow="both" aria-pressed="true">All paths</button>
+        <button class="flow-button" type="button" data-flow="inbound" aria-pressed="false">Inbound</button>
+        <button class="flow-button" type="button" data-flow="outbound" aria-pressed="false">Agent reply</button>
+        <button class="flow-button" type="button" data-flow="templates" aria-pressed="false">Templates</button>
+        <button class="flow-button" type="button" data-flow="status" aria-pressed="false">Delivery status</button>
+      </div>
+
+      <figure class="architecture-shell">
+        <div class="architecture-header">
+          <strong>Request and event paths</strong>
+          <div class="component-key" aria-label="Component ownership">
+            <span><i class="key-flex"></i> Flex hub</span>
+            <span><i class="key-service"></i> Integration service</span>
+            <span><i class="key-spoke"></i> WABA subaccount</span>
+            <span><i class="key-external"></i> WhatsApp / Meta</span>
+          </div>
+        </div>
+        <div class="implementation-stage" id="architectureDiagram" data-flow="both">
+          <article class="path-row" data-path="inbound">
+            <div class="path-summary"><span>Inbound</span><strong>Customer message reaches an agent</strong><small>New or resumed conversation</small></div>
+            <div class="path-steps">
+              <div class="path-node owner-external"><span class="path-node-tag">WhatsApp / Meta</span><h3>Customer message</h3><p>Text or media is sent to an Owl business number.</p></div>
+              <div class="path-node owner-spoke"><span class="path-node-tag">WABA subaccount</span><h3>Registered WhatsApp sender</h3><p>Twilio receives the message for the addressed sender.</p></div>
+              <div class="path-node owner-service"><span class="path-node-tag">Integration service</span><h3><code>POST /inbound</code></h3><p>Check the signature using the subaccount details, ignore duplicates, add <code>wabaId</code> and record the event.</p></div>
+              <div class="path-node owner-flex"><span class="path-node-tag">Flex hub</span><h3>Conversation + Interaction</h3><p>Add the message to the Flex Conversation. If no task is active, connect the Conversation to an Interaction and route the work.</p></div>
+              <div class="path-node owner-flex"><span class="path-node-tag">Agent desktop</span><h3>Custom Flex channel</h3><p>The plugin shows the message, business and sender. History comes from the Flex Conversation.</p></div>
+            </div>
+          </article>
+
+          <article class="path-row" data-path="outbound">
+            <div class="path-summary"><span>Agent reply</span><strong>Flex sends through one subaccount</strong><small>Free-form or template message</small></div>
+            <div class="path-steps">
+              <div class="path-node owner-flex"><span class="path-node-tag">Agent desktop</span><h3>Composer / send action</h3><p>The plugin passes the task's <code>wabaId</code>, recipient and message payload.</p></div>
+              <div class="path-node owner-service"><span class="path-node-tag">Integration service</span><h3><code>POST /messages</code></h3><p>Authorize the agent, check the 24-hour window and validate the payload.</p></div>
+              <div class="path-node owner-service"><span class="path-node-tag">Integration service</span><h3>Credential broker</h3><p>Resolve <code>wabaId</code> to the owning Account SID, credential context and WhatsApp sender.</p></div>
+              <div class="path-node owner-spoke"><span class="path-node-tag">WABA subaccount</span><h3>Programmable Messaging API</h3><p>Create the message with <code>from</code>, or with <code>ContentSid</code> and variables.</p></div>
+              <div class="path-node owner-external"><span class="path-node-tag">WhatsApp / Meta</span><h3>Customer delivery</h3><p>Meta delivers the message to the customer and returns delivery events.</p></div>
+            </div>
+          </article>
+
+          <article class="path-row" data-path="templates">
+            <div class="path-summary"><span>Templates</span><strong>List content for the active WABA</strong><small>Used outside the service window</small></div>
+            <div class="path-steps">
+              <div class="path-node owner-flex"><span class="path-node-tag">Agent desktop</span><h3>WABA-aware picker</h3><p>Requests templates for the WABA and language attached to the task.</p></div>
+              <div class="path-node owner-service"><span class="path-node-tag">Integration service</span><h3><code class="endpoint-label"><span class="endpoint-method">GET</span><span class="endpoint-route">/wabas/:id/<wbr>templates</span></code></h3><p>Check authorization and resolve the owning subaccount from the WABA ID.</p></div>
+              <div class="path-node owner-service"><span class="path-node-tag">Integration service</span><h3>Template lookup</h3><p>Read approved templates from the selected subaccount.</p></div>
+              <div class="path-node owner-spoke"><span class="path-node-tag">WABA subaccount</span><h3>Content API</h3><p>Source of truth for approved <code>HX…</code> templates, language and variables.</p></div>
+              <div class="path-node owner-service"><span class="path-node-tag">Send request</span><h3>Content SID + variables</h3><p>The selected template is sent through that same subaccount's Messaging API.</p></div>
+            </div>
+          </article>
+
+          <article class="path-row" data-path="status">
+            <div class="path-summary"><span>Delivery status</span><strong>Update Flex after a send</strong><small>Queued, sent, delivered or failed</small></div>
+            <div class="path-steps">
+              <div class="path-node owner-spoke"><span class="path-node-tag">WABA subaccount</span><h3>StatusCallback</h3><p>Twilio posts the Message SID, status and any error code.</p></div>
+              <div class="path-node owner-service"><span class="path-node-tag">Integration service</span><h3><code>POST /status</code></h3><p>Validate the signature for the subaccount and acknowledge quickly.</p></div>
+              <div class="path-node owner-service"><span class="path-node-tag">Integration service</span><h3>Dedupe + mapping</h3><p>Use Message SID + status, then find the matching conversation and task.</p></div>
+              <div class="path-node owner-flex"><span class="path-node-tag">Flex hub</span><h3>Message state</h3><p>Match the subaccount Message SID to the Flex message and apply the latest status.</p></div>
+              <div class="path-node owner-flex"><span class="path-node-tag">Agent desktop</span><h3>Delivery indicator</h3><p>Show sent, delivered or failed without blocking the composer.</p></div>
+            </div>
+          </article>
+
+          <div class="state-block">
+            <strong>Shared backend state</strong>
+            <div class="state-grid">
+              <div class="state-item"><strong>WABA registry</strong><p><code>wabaId</code> → Account SID, sender, allowed teams and status.</p></div>
+              <div class="state-item"><strong>Credential store</strong><p>Supported API credentials and webhook-validation context for each subaccount.</p></div>
+              <div class="state-item"><strong>Conversation mapping</strong><p>WABA + customer + thread → Flex Conversation, active Interaction and Task.</p></div>
+              <div class="state-item"><strong>Message mapping</strong><p>Subaccount Message SID → Flex message, direction, delivery state and error.</p></div>
+            </div>
+          </div>
+        </div>
+        <figcaption class="architecture-caption"><strong>Implementation boundary:</strong> the browser calls the integration service with a logical WABA ID. Only the service holds subaccount credentials, validates account-specific webhooks and calls the subaccount APIs.</figcaption>
+      </figure>
+    </section>
+
+    <section class="section" id="lifecycle">
+      <p class="section-label">Flex work and history</p>
+      <h2>How a message becomes work in Flex</h2>
+      <p class="section-intro">The WhatsApp message lives in the subaccount. The agent sees a copy in a Conversation in the Flex account. The Interaction connects that Conversation to Flex, and the TaskRouter task sends the work to an agent.</p>
+      <div class="lifecycle-grid">
+        <article class="lifecycle-card"><span>1 · WhatsApp message</span><h3>Receive or send</h3><p>The subaccount creates a Message SID and, for outbound messages, sends delivery updates. Keep the <code>wabaId</code> with them.</p></article>
+        <article class="lifecycle-card"><span>2 · Flex history</span><h3>Add it to a Conversation</h3><p>Create or reuse the Conversation in the Flex account, make sure the customer is represented and add the message once.</p></article>
+        <article class="lifecycle-card"><span>3 · Agent work</span><h3>Route it through Flex</h3><p>If no task is active for this thread, link the Conversation to an Interaction and route a task with the WABA details.</p></article>
+        <article class="lifecycle-card"><span>4 · Later messages</span><h3>End the task, keep the history</h3><p>When the agent finishes, keep the Conversation mapping. A later inbound message can create new work without losing the transcript.</p></article>
+      </div>
+
+      <table class="mode-table">
+        <thead><tr><th>Situation</th><th>What happens</th><th>What to watch</th></tr></thead>
+        <tbody>
+          <tr><td>First inbound message</td><td>Create the Conversation and customer representation in the Flex account, add the message, then create the Interaction using that Conversation.</td><td>The Interaction is created asynchronously. Keep the work pending until its channel and task are ready.</td></tr>
+          <tr><td>New outbound conversation</td><td>Choose and lock the WABA, create the Conversation and Flex work, then send through the matching subaccount and add the message to the transcript.</td><td>Do not enable sending until the WABA is authorized and the thread mapping exists.</td></tr>
+          <tr><td>Message while a task is active</td><td>Add it once to the existing Conversation and show it to the active agent.</td><td>Do not create another task for the same open thread.</td></tr>
+          <tr><td>Message after a task ended</td><td>If the business thread is still open, reuse the Conversation and create new agent work.</td><td>Keep only one active Interaction and task for that thread.</td></tr>
+          <tr><td>Business thread is closed</td><td>Start a new Conversation for later contact and link it to the old one if the business needs that reference.</td><td>Define what closes a thread instead of relying only on TaskRouter status.</td></tr>
+          <tr><td>Transfer to another agent</td><td>Keep the same WABA and Conversation and use the chosen Flex transfer or routing process.</td><td>A transfer must not introduce a second WhatsApp sender.</td></tr>
+        </tbody>
+      </table>
+      <div class="callout"><strong>Routing failures:</strong> decide what to do when a workflow times out or a task is cancelled or deleted. Re-route it, close it or flag it for follow-up so the Conversation is not left open with nobody looking after it.</div>
+    </section>
+
+    <section class="section" id="context">
+      <p class="section-label">Data contracts</p>
+      <h2>Keep the same IDs from WhatsApp through to Flex</h2>
+      <p class="section-intro">The registry says which subaccount owns each WABA. Conversation mappings keep track of the Flex work, and message mappings connect the Flex transcript to the message sent or received by the subaccount. Credentials stay in the backend.</p>
+
+      <div class="table-wrap">
+        <table class="mode-table">
+          <thead><tr><th>Record</th><th>Keep at least</th><th>How to use it</th></tr></thead>
+          <tbody>
+            <tr><td>WABA registry</td><td><code>wabaId</code>, display name, account reference, sender address, credential reference, policy reference, languages and status</td><td>Keep <code>wabaId</code> stable even if the phone number or credentials change.</td></tr>
+            <tr><td>Conversation mapping</td><td><code>mappingId</code>, <code>wabaId</code>, customer address, thread key, Conversation SID, active Interaction and Task SIDs, status and timestamps</td><td>Allow only one active work mapping for the same business thread.</td></tr>
+            <tr><td>Message mapping</td><td><code>wabaId</code>, subaccount Message SID, Flex message SID, direction, status, error code, idempotency key and timestamps</td><td>Use the subaccount and Message SID together. Status callbacks may be repeated or arrive out of order.</td></tr>
+            <tr><td>Template reference</td><td><code>wabaId</code>, Content SID, language, name, approval status, variables and last checked time</td><td>Use the Content SID together with the owning account. Template names may be duplicated.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="contract-layout">
+        <div class="contract-copy">
+          <h3>What to put on the Flex task</h3>
+          <p>Keep task attributes small. Include the WABA, the Flex Conversation and the details the agent needs to see. Keep account and credential references in the backend.</p>
+          <ul>
+            <li>Do not change <code>wabaId</code> after the thread starts.</li>
+            <li>Use <code>selectionSource</code> to show how it was chosen.</li>
+            <li>Keep <code>policyVersion</code> so the choice can be explained later.</li>
+            <li>Use <code>conversationSid</code> to find the agent-visible history.</li>
+          </ul>
+        </div>
+        <div class="code-card" aria-label="Example Flex task context JSON">
+          <div class="code-card-header"><i></i><i></i><i></i><span>task-attributes.json</span></div>
+          <pre>{
+  <span class="code-key">"schemaVersion"</span>: <span class="code-string">"1.0"</span>,
+  <span class="code-key">"wabaId"</span>: <span class="code-string">"owl-inc-uk"</span>,
+  <span class="code-key">"wabaDisplayName"</span>: <span class="code-string">"Owl Inc."</span>,
+  <span class="code-key">"senderAddress"</span>: <span class="code-string">"whatsapp:+44…"</span>,
+  <span class="code-key">"conversationSid"</span>: <span class="code-string">"CH…"</span>,
+  <span class="code-key">"selectionSource"</span>: <span class="code-string">"queue-policy"</span>,
+  <span class="code-key">"policyVersion"</span>: <span class="code-string">"2026-10-01"</span>,
+  <span class="code-key">"serviceWindowExpiresAt"</span>: <span class="code-string">"2026-10-06T18:42:00Z"</span>
+}</pre>
+        </div>
+      </div>
+      <div class="callout blue"><strong>Do not rely only on WABA and customer:</strong> add a thread or case key if the same customer can have more than one case with the same WABA.</div>
+    </section>
+
+    <section class="section" id="selection">
+      <p class="section-label">Sender assignment</p>
+      <h2>How the system chooses a WABA</h2>
+      <p class="section-intro">Different companies assign senders in different ways. The backend can support these options through one resolver API. It returns the WABAs the agent may use, the default choice and the rule that produced it.</p>
+      <div class="policy-grid">
+        <article class="policy-card">
+          <span class="policy-tag">Team mapping</span>
+          <h3>Fixed by queue</h3>
+          <p>Map a team, queue or workflow to one WABA. The agent does not choose a sender.</p>
+          <span class="best-for">Useful when teams serve one brand</span>
+        </article>
+        <article class="policy-card">
+          <span class="policy-tag">Business rule</span>
+          <h3>Based on customer context</h3>
+          <p>Use the brand, market, CRM account, campaign, language or a previous conversation.</p>
+          <span class="best-for">Useful when the data already identifies the brand</span>
+        </article>
+        <article class="policy-card">
+          <span class="policy-tag">Agent choice</span>
+          <h3>Selected in Flex</h3>
+          <p>Show the agent a list containing only the WABAs they are allowed to use.</p>
+          <span class="best-for">Useful for shared service teams</span>
+        </article>
+        <article class="policy-card">
+          <span class="policy-tag">Default + override</span>
+          <h3>Suggested, then confirmed</h3>
+          <p>Choose a default from the available context and let an authorized agent change it before sending.</p>
+          <span class="best-for">Useful when most cases are predictable</span>
+        </article>
+      </div>
+      <div class="callout blue"><strong>Once a conversation starts:</strong> its WABA and sender remain fixed. If another WABA needs to contact the customer, create a separate conversation and retain a reference to the original interaction.</div>
+    </section>
+
+    <section class="section" id="inbound">
+      <p class="section-label">Inbound messages</p>
+      <h2>Use the destination number to identify the WABA</h2>
+      <p class="section-intro">For an inbound message, the WABA is already known from the webhook route and the WhatsApp number that received it.</p>
+      <div class="workflow">
+        <article class="step"><div class="step-number">01</div><div class="step-body"><h3>Receive and verify</h3><p>The WhatsApp sender calls the webhook configured in its subaccount. Resolve the account from the trusted route and validate <code>X-Twilio-Signature</code> before using the payload.</p></div></article>
+        <article class="step"><div class="step-number">02</div><div class="step-body"><h3>Use one message format</h3><p>Create a common event with <code>wabaId</code>, sender, customer address, Message SID, body and media references. Use the account and Message SID to spot retries.</p></div></article>
+        <article class="step"><div class="step-number">03</div><div class="step-body"><h3>Find or create the Flex Conversation</h3><p>Resolve the open mapping using WABA, customer and thread key. For first contact, create the Conversation in the Flex account and its customer representation before routing work.</p></div></article>
+        <article class="step"><div class="step-number">04</div><div class="step-body"><h3>Add the message to Flex</h3><p>Add the inbound message once to the Flex Conversation. Retrieve media with the owning subaccount's credentials and follow the agreed storage rules.</p></div></article>
+        <article class="step"><div class="step-number">05</div><div class="step-body"><h3>Route it when an agent is needed</h3><p>If the thread has no active task, create an Interaction using the Conversation and route a task with the WABA details. Wait for setup to finish before showing the work as ready.</p></div></article>
+        <article class="step"><div class="step-number">06</div><div class="step-body"><h3>Show it in Flex</h3><p>The plugin shows the business and sender. The transcript comes from the Flex Conversation, and replies remain on the same WABA.</p></div></article>
+      </div>
+    </section>
+
+    <section class="section" id="outbound">
+      <p class="section-label">Outbound messages</p>
+      <h2>Choose the WABA before loading templates</h2>
+      <p class="section-intro">An outbound message needs a sender before the system can check the 24-hour window or list templates. Both are specific to a WABA.</p>
+      <div class="workflow">
+        <article class="step"><div class="step-number">01</div><div class="step-body"><h3>Send the available context</h3><p>The plugin sends the agent, team, queue, customer, brand, language and previous-conversation data to the WABA resolver.</p></div></article>
+        <article class="step"><div class="step-number">02</div><div class="step-body"><h3>Get the allowed WABAs</h3><p>The resolver returns the WABAs this agent may use and, where possible, a default. The agent can only choose from that list.</p></div></article>
+        <article class="step"><div class="step-number">03</div><div class="step-body"><h3>Lock the WABA and thread</h3><p>For new contact, create the Flex Conversation and mapping before enabling send. For an existing thread, verify that the requested WABA matches its fixed context.</p></div></article>
+        <article class="step"><div class="step-number">04</div><div class="step-body"><h3>Check the 24-hour window</h3><p>Look up the last verified inbound message for this customer and WABA. Allow free-form text inside the window. Outside it, require an approved template.</p></div></article>
+        <article class="step"><div class="step-number">05</div><div class="step-body"><h3>Load templates</h3><p>Read templates from the selected subaccount. Keep the language, approval status, subaccount and <code>ContentSid</code> with each result. An optional lookup layer may be added for scale.</p></div></article>
+        <article class="step"><div class="step-number">06</div><div class="step-body"><h3>Send from the backend</h3><p>Check authorization again, record the send request, load the subaccount credentials and call the Messaging API. Save the Message SID before reporting success to Flex.</p></div></article>
+        <article class="step"><div class="step-number">07</div><div class="step-body"><h3>Add it to the transcript</h3><p>Add the agent's message to the Flex Conversation once. Use validated status callbacks to keep its delivery state up to date.</p></div></article>
+      </div>
+      <div class="callout"><strong>If a send times out:</strong> do not send it again automatically. First check whether Twilio created the message.</div>
+    </section>
+
+    <section class="section" id="templates">
+      <p class="section-label">WhatsApp templates</p>
+      <h2>Keep templates in the subaccount that owns them</h2>
+      <p class="section-intro">Templates are created and approved in each WABA's subaccount. Flex can present them in one picker, but each template keeps its original subaccount and Content SID.</p>
+      <div class="template-model">
+        <article class="template-card">
+          <div class="template-card-header"><span>Baseline</span><h3>Read from the subaccount</h3></div>
+          <div class="template-card-body"><p>Fetch templates from the owning subaccount when the agent opens the message composer.</p><ul><li>Simplest operating model</li><li>Always reads the source of truth</li><li>A good place to start</li></ul></div>
+        </article>
+      </div>
+      <div class="callout"><strong>Only if needed:</strong> add a short-lived lookup layer later if direct template reads become too slow. The subaccount remains the source of truth.</div>
+
+      <table class="mode-table">
+        <thead><tr><th>Message mode</th><th>When allowed</th><th>Composer behavior</th><th>Account key</th></tr></thead>
+        <tbody>
+          <tr><td>Free-form</td><td>Inside the 24-hour customer service window for this sender context</td><td>Enable body and supported media</td><td><code>wabaId + customer</code></td></tr>
+          <tr><td>Template</td><td>When approved and eligible for the selected WABA and use case</td><td>Require template and validated variables</td><td><code>wabaId + ContentSid</code></td></tr>
+          <tr><td>Blocked</td><td>Outside window with no approved eligible template</td><td>Explain the constraint; do not attempt free-form</td><td><code>wabaId + locale</code></td></tr>
+        </tbody>
+      </table>
+      <div class="callout blue"><strong>Template picker:</strong> the standard viewer in the main account will not show templates stored in the subaccounts. The plugin needs its own picker, filtered by the WABA on the task.</div>
+    </section>
+
+    <section class="section" id="endpoints">
+      <p class="section-label">Integration API</p>
+      <h2>An example API for the integration</h2>
+      <p class="section-intro">These endpoint names are examples. The backend still checks which WABA and subaccount apply and whether the caller is allowed to use them. A WABA ID in the URL is not proof of which account sent the request.</p>
+      <table class="endpoint-table">
+        <thead><tr><th>Endpoint</th><th>Responsibility</th><th>Caller</th></tr></thead>
+        <tbody>
+          <tr><td><code>POST /webhooks/wabas/:wabaId/inbound</code></td><td>Find the subaccount, check the signature, ignore duplicates and record the inbound message.</td><td>Twilio subaccount</td></tr>
+          <tr><td><code>POST /webhooks/wabas/:wabaId/status</code></td><td>Check the signature and update the matching subaccount and Flex message records.</td><td>Twilio subaccount</td></tr>
+          <tr><td><code>POST /wabas/resolve</code></td><td>Return the WABAs the agent may use, the suggested choice, the reason and the policy version.</td><td>Flex plugin / workflow</td></tr>
+          <tr><td><code>GET /wabas/:wabaId/templates</code></td><td>List approved, eligible templates for the requested language and use case.</td><td>Flex plugin</td></tr>
+          <tr><td><code>POST /messages</code></td><td>Check authorization and the message type, record the request and send through the selected subaccount.</td><td>Flex plugin / automation</td></tr>
+        </tbody>
+      </table>
+
+      <div class="code-pair">
+        <div class="code-card" aria-label="Example WABA resolver request">
+          <div class="code-card-header"><i></i><i></i><i></i><span>resolve-request.json</span></div>
+          <pre>{
+  <span class="code-key">"agentId"</span>: <span class="code-string">"WK…"</span>,
+  <span class="code-key">"team"</span>: <span class="code-string">"shared-support"</span>,
+  <span class="code-key">"queue"</span>: <span class="code-string">"billing-en"</span>,
+  <span class="code-key">"customerAddress"</span>: <span class="code-string">"+44…"</span>,
+  <span class="code-key">"brandHint"</span>: <span class="code-string">"owl-bank"</span>,
+  <span class="code-key">"locale"</span>: <span class="code-string">"en-GB"</span>,
+  <span class="code-key">"previousWabaId"</span>: <span class="code-string">null</span>
+}</pre>
+        </div>
+        <div class="code-card" aria-label="Example WABA resolver response">
+          <div class="code-card-header"><i></i><i></i><i></i><span>resolve-response.json</span></div>
+          <pre>{
+  <span class="code-key">"allowed"</span>: [
+    { <span class="code-key">"wabaId"</span>: <span class="code-string">"owl-bank-uk"</span>,
+      <span class="code-key">"displayName"</span>: <span class="code-string">"Owl Bank"</span> }
+  ],
+  <span class="code-key">"selectedWabaId"</span>: <span class="code-string">"owl-bank-uk"</span>,
+  <span class="code-key">"selectionSource"</span>: <span class="code-string">"brand-rule"</span>,
+  <span class="code-key">"policyVersion"</span>: <span class="code-string">"2026-10-01"</span>,
+  <span class="code-key">"agentConfirmationRequired"</span>: <span class="code-string">false</span>
+}</pre>
+        </div>
+      </div>
+      <div class="callout"><strong>If no WABA is available:</strong> return an empty list and explain why. Do not choose another sender behind the scenes.</div>
+    </section>
+
+    <section class="section" id="ownership">
+      <p class="section-label">Responsibility</p>
+      <h2>Who owns what</h2>
+      <p class="section-intro">Keep each setting or record in one system. The hub only stores the information it needs for routing, display and message correlation.</p>
+      <table class="mode-table">
+        <thead><tr><th>Data or capability</th><th>System of record</th><th>Hub behavior</th></tr></thead>
+        <tbody>
+          <tr><td>Sender registration and WABA lifecycle</td><td><span class="owner-pill">Spoke subaccount</span></td><td>Reference through a logical registry entry.</td></tr>
+          <tr><td>Templates and Meta approval</td><td><span class="owner-pill">Spoke subaccount</span></td><td>Read from the owning account and keep the account-qualified Content SID.</td></tr>
+          <tr><td>Agent authorization and sender policy</td><td><span class="owner-pill">Hub policy store</span></td><td>Resolve eligible WABAs and record policy version.</td></tr>
+          <tr><td>Conversation and task correlation</td><td><span class="owner-pill">Hub mapping store</span></td><td>Map WABA + customer to Flex and message identifiers.</td></tr>
+          <tr><td>Delivery status</td><td><span class="owner-pill">Twilio message resource</span></td><td>Show the latest known status in the agent experience.</td></tr>
+          <tr><td>Service-window state</td><td><span class="owner-pill">Derived hub state</span></td><td>Update only from verified inbound events and expire conservatively.</td></tr>
+          <tr><td>Credentials</td><td><span class="owner-pill">Backend credential store</span></td><td>Resolve per spoke at execution time; never return to Flex.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section" id="security">
+      <p class="section-label">Access and credentials</p>
+      <h2>Keep credentials in the backend</h2>
+      <p class="section-intro">Flex only needs the active WABA and the sender details agents should see. The backend resolves credential material that is valid for the subaccount that owns that WABA.</p>
+      <div class="cards-4">
+        <article class="card"><h3>Account-specific context</h3><p>Each subaccount has its own Account SID and Auth Token context. API keys are created separately and belong to the account where they are created.</p></article>
+        <article class="card"><h3>Webhook verification</h3><p>Validate Twilio signatures using the correct account context. Resolve that context from a trusted endpoint mapping, not an untrusted form field.</p></article>
+        <article class="card"><h3>Agent authorization</h3><p>Enforce WABA eligibility again in the backend. Hiding a sender in the plugin is useful UX, not an authorization boundary.</p></article>
+        <article class="card"><h3>Minimal Flex data</h3><p>Keep task attributes to the routing identifiers and display fields Flex needs. Do not include secrets, tokens or unnecessary customer data.</p></article>
+      </div>
+      <div class="callout green"><strong>An account and an API key are not the same thing:</strong> a subaccount has its own SID and Auth Token. An API key is created separately and belongs to the account where it was created. Choose the supported authentication method and credential lifecycle that fit the company’s security policy.</div>
+    </section>
+
+    <section class="section" id="onboarding">
+      <p class="section-label">Add or remove a WABA</p>
+      <h2>Use the same process for every new WABA</h2>
+      <p class="section-intro">Adding a WABA should be a configuration change, not a plugin change. The plugin reads the new WABA from the registry and sender rules.</p>
+      <div class="runbook">
+        <article class="runbook-item"><div><h3>Set up the subaccount</h3><p>Create or choose the Twilio subaccount, complete WhatsApp onboarding, register the sender and confirm it can receive traffic.</p></div></article>
+        <article class="runbook-item"><div><h3>Add the templates</h3><p>Create the templates in that subaccount, wait for approval and note the supported languages and use cases.</p></div></article>
+        <article class="runbook-item"><div><h3>Configure the callbacks</h3><p>Point inbound messages and delivery updates to the correct integration URLs. Test HTTPS and signature validation using this subaccount.</p></div></article>
+        <article class="runbook-item"><div><h3>Give the backend access</h3><p>Register credentials for the subaccount in the backend, keep them behind a credential reference and test the API calls the integration needs.</p></div></article>
+        <article class="runbook-item"><div><h3>Add the WABA to the registry</h3><p>Add the stable <code>wabaId</code>, display name, account, sender, languages and policy reference. Keep it disabled until testing is complete.</p></div></article>
+        <article class="runbook-item"><div><h3>Choose who can use it</h3><p>Set the agents, queues or business rules that may use the WABA. Decide whether it can be suggested automatically and who may change the suggestion.</p></div></article>
+        <article class="runbook-item"><div><h3>Test the main paths</h3><p>Test an inbound message, a reply inside the service window, a template outside it, delivery updates, blocked access and a resumed conversation.</p></div></article>
+        <article class="runbook-item"><div><h3>Turn it on</h3><p>Set the registry entry to active, give the intended teams access and watch routing and delivery for that WABA during rollout.</p></div></article>
+      </div>
+      <div class="callout"><strong>Removing a WABA:</strong> stop it from being selected for new outbound messages first. Let active work finish, then remove callbacks and credentials. Keep or delete the remaining records according to the agreed retention rules.</div>
+    </section>
+
+    <section class="section" id="acceptance">
+      <p class="section-label">Acceptance tests</p>
+      <h2>Test the cases that are easy to miss</h2>
+      <p class="section-intro">Run these tests for every WABA in an environment that matches production closely. Save the Message SID, Conversation SID, Interaction SID, Task SID and request ID with the test results.</p>
+      <div class="table-wrap">
+        <table class="mode-table">
+          <thead><tr><th>Scenario</th><th>Expected result</th></tr></thead>
+          <tbody>
+            <tr><td>First inbound message</td><td>One Flex Conversation, one message and one routed task are created with the correct WABA and visible sender.</td></tr>
+            <tr><td>Repeated inbound webhook</td><td>The same event is acknowledged without creating another Flex message, mapping, Interaction or task.</td></tr>
+            <tr><td>Inbound while work is active</td><td>The message appears once in the active Conversation and no second task is created.</td></tr>
+            <tr><td>Resume after task completion</td><td>New agent work is created against the retained Conversation with the same WABA and transcript.</td></tr>
+            <tr><td>Reply inside the service window</td><td>The free-form message uses the fixed WABA. Its subaccount Message SID is linked to one message in Flex and receives status updates.</td></tr>
+            <tr><td>Send outside the service window</td><td>Free-form text is blocked and only approved, eligible templates from the fixed WABA are offered.</td></tr>
+            <tr><td>Unauthorized WABA</td><td>The backend rejects the request even if the caller changes the browser payload manually.</td></tr>
+            <tr><td>Duplicate send action</td><td>If the browser repeats the same request, the backend makes at most one send attempt for that idempotency key.</td></tr>
+            <tr><td>Media message</td><td>Supported media is retrieved using the correct subaccount, passes the agreed security checks and is shown only to authorized users.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section" id="checklist">
+      <p class="section-label">Before launch</p>
+      <h2>Check these before launch</h2>
+      <p class="section-intro">Use this list before the first WABA goes live and again when the design changes.</p>
+      <div class="checklist">
+        <div class="checklist-group">
+          <div class="checklist-group-header">
+            <h3>Go-live checklist</h3>
+            <p>These checks apply no matter how many WABAs are connected or how senders are chosen.</p>
+          </div>
+          <div class="check-item"><p>The team agrees how Flex Conversations, Interactions and Tasks are created, closed and resumed.</p></div>
+          <div class="check-item"><p>Every WABA has a stable <code>wabaId</code> mapped to its subaccount and sender, and the task attributes contain no credentials.</p></div>
+          <div class="check-item"><p>Sender rules and override permissions are defined, and the WABA stays fixed after a conversation starts.</p></div>
+          <div class="check-item"><p>Inbound and status webhooks use the correct account context, validate signatures and safely handle duplicates.</p></div>
+          <div class="check-item"><p>The service window is tracked per WABA and customer, and templates come from the owning subaccount.</p></div>
+          <div class="check-item"><p>Credentials stay in the backend and their storage, replacement and revocation are documented.</p></div>
+          <div class="check-item"><p>The acceptance tests pass for every active WABA, and monitoring covers webhook, routing and send errors.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="glossary">
+      <p class="section-label">Glossary</p>
+      <h2>Terms used in this guide</h2>
+      <p class="section-intro">Use the same terms in design documents, task attributes, APIs and support guides.</p>
+      <div class="table-wrap">
+        <table class="mode-table">
+          <thead><tr><th>Term</th><th>Meaning here</th></tr></thead>
+          <tbody>
+            <tr><td>Hub</td><td>The main Twilio account that owns Flex, the agent-facing Conversations, Interactions and TaskRouter configuration.</td></tr>
+            <tr><td>Spoke</td><td>A Twilio subaccount that owns one WABA's WhatsApp sender, templates, message resources and callbacks.</td></tr>
+            <tr><td>WABA</td><td>The WhatsApp Business Account represented by one logical <code>wabaId</code> in this integration.</td></tr>
+            <tr><td>Sender</td><td>The registered WhatsApp address used by the spoke to communicate with customers.</td></tr>
+            <tr><td>Flex Conversation</td><td>The Twilio Conversation in the Flex account used as the agent-visible messaging transcript and media channel.</td></tr>
+            <tr><td>Interaction</td><td>The Flex resource that binds a media channel to routing and produces agent work.</td></tr>
+            <tr><td>Task</td><td>The TaskRouter work item offered to an agent. It is not the durable conversation history.</td></tr>
+            <tr><td>Subaccount Message</td><td>The Twilio Message resource created or received in the WABA's subaccount and identified by a Message SID.</td></tr>
+            <tr><td>Content SID</td><td>The account-qualified identifier for an approved content template used by the owning subaccount.</td></tr>
+            <tr><td>Service window</td><td>The WhatsApp customer service window in which free-form replies are allowed for that WABA and customer context.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout blue"><strong>Product references:</strong> confirm implementation details against Twilio's <a href="https://www.twilio.com/docs/flex/developer/conversations/interactions-api/interactions">Interactions resource</a>, <a href="https://www.twilio.com/docs/flex/developer/conversations/best-practices">Flex Conversations best practices</a>, <a href="https://www.twilio.com/docs/whatsapp/key-concepts">WhatsApp key concepts</a> and <a href="https://www.twilio.com/docs/usage/webhooks/webhooks-security">webhook security guidance</a>.</div>
+    </section>
+
+  </main>
+
+  <footer>Twilio Flex with multiple WABAs · Implementation blueprint · Confirm current Twilio and Meta behavior before delivery.</footer>
+
+  <script>
+    const body = document.body;
+    const menuToggle = document.querySelector('.menu-toggle');
+    const navLinks = [...document.querySelectorAll('.side-nav a')];
+    const sections = [...document.querySelectorAll('main section[id]')];
+    const flowButtons = [...document.querySelectorAll('.flow-button')];
+    const diagram = document.getElementById('architectureDiagram');
+
+    menuToggle?.addEventListener('click', () => {
+      const open = body.classList.toggle('nav-open');
+      menuToggle.setAttribute('aria-expanded', String(open));
+    });
+
+    navLinks.forEach(link => link.addEventListener('click', () => {
+      body.classList.remove('nav-open');
+      menuToggle?.setAttribute('aria-expanded', 'false');
+    }));
+
+    flowButtons.forEach(button => button.addEventListener('click', () => {
+      const flow = button.dataset.flow;
+      diagram.dataset.flow = flow;
+      flowButtons.forEach(candidate => candidate.setAttribute('aria-pressed', String(candidate === button)));
+    }));
+
+    const observer = new IntersectionObserver(entries => {
+      const visible = entries
+        .filter(entry => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (!visible) return;
+      navLinks.forEach(link => link.classList.toggle('active', link.getAttribute('href') === `#${visible.target.id}`));
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: [0, .25, .6] });
+
+    sections.forEach(section => observer.observe(section));
+  </script>
+</body>
+</html>
