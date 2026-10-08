@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A high-level design for connecting one Twilio Flex contact centre to multiple WhatsApp Business Accounts.">
+  <title>High-level design | Twilio Flex + Multiple WABAs</title>
+  <style>
+    :root {
+      --ink: #0b172a;
+      --ink-2: #14243d;
+      --red: #f22f46;
+      --red-dark: #c92338;
+      --red-soft: #fff0f2;
+      --blue: #0f93c8;
+      --blue-dark: #0879a8;
+      --blue-soft: #eaf8fd;
+      --text: #26364e;
+      --muted: #68788f;
+      --line: #d9e1eb;
+      --surface: #f5f7fa;
+      --white: #fff;
+      --radius: 10px;
+    }
+
+    * { box-sizing: border-box; }
+    html { background: #eef2f6; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: #eef2f6;
+      font-family: "Inter", "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; }
+    :focus-visible { outline: 3px solid rgba(15, 147, 200, .4); outline-offset: 3px; }
+
+    .sheet {
+      width: min(calc(100% - 40px), 1440px);
+      margin: 20px auto;
+      overflow: hidden;
+      border: 1px solid #cbd5e1;
+      border-radius: 14px;
+      background: var(--white);
+      box-shadow: 0 24px 70px rgba(11, 23, 42, .12);
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 18px 32px;
+      color: #d9e4ef;
+      background: var(--ink);
+    }
+    .brand { color: var(--white); font-size: .96rem; font-weight: 800; }
+    .topbar p { margin: 0; color: #91a3ba; font-size: .78rem; }
+    .topbar a {
+      border-bottom: 1px solid rgba(255,255,255,.35);
+      color: var(--white);
+      font-size: .78rem;
+      font-weight: 750;
+      text-decoration: none;
+    }
+
+    main { padding: 42px 48px 36px; }
+
+    .intro {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(300px, .55fr);
+      gap: 64px;
+      align-items: end;
+    }
+    h1, h2, h3 { margin: 0; color: var(--ink); line-height: 1.14; }
+    h1 { max-width: 850px; font-size: clamp(2.7rem, 5vw, 5.1rem); letter-spacing: -.055em; }
+    h2 { font-size: 1.18rem; letter-spacing: -.02em; }
+    h3 { font-size: .96rem; }
+    p { margin: 0; }
+    .lede { max-width: 900px; margin-top: 16px; color: #4c5d74; font-size: 1.08rem; }
+
+    .proposal {
+      border-top: 4px solid var(--red);
+      padding: 18px 20px;
+      background: var(--surface);
+    }
+    .proposal strong { display: block; margin-bottom: 7px; color: var(--red-dark); font-size: .79rem; }
+    .proposal p { font-size: .9rem; }
+
+    .architecture-wrap { margin-top: 34px; }
+    .architecture-heading {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 12px;
+    }
+    .architecture-heading p { color: var(--muted); font-size: .82rem; }
+    .legend { display: flex; gap: 18px; white-space: nowrap; }
+    .legend span { display: inline-flex; align-items: center; gap: 7px; }
+    .legend i { width: 20px; height: 3px; background: var(--red); }
+    .legend .inbound { background: var(--blue); }
+
+    .architecture {
+      display: grid;
+      grid-template-columns: minmax(210px, .9fr) minmax(90px, .36fr) minmax(260px, 1fr) minmax(90px, .36fr) minmax(240px, .95fr);
+      align-items: stretch;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 20px;
+      background-color: #fbfcfe;
+      background-image: radial-gradient(#cfd9e5 1px, transparent 1px);
+      background-size: 18px 18px;
+    }
+
+    .system {
+      position: relative;
+      display: flex;
+      min-height: 218px;
+      flex-direction: column;
+      justify-content: center;
+      border: 1px solid #bfcbd9;
+      border-top: 6px solid var(--red);
+      border-radius: var(--radius);
+      padding: 24px;
+      background: var(--white);
+    }
+    .system.integration { border: 3px solid var(--ink); padding: 22px; }
+    .system-tag { margin-bottom: 8px; color: var(--muted); font-size: .7rem; font-weight: 800; }
+    .integration .system-tag { color: var(--red-dark); }
+    .system h3 { margin-bottom: 13px; font-size: 1.35rem; }
+    .system ul { margin: 0; padding-left: 18px; color: #5f7087; font-size: .84rem; }
+    .system li + li { margin-top: 4px; }
+
+    .connector { display: grid; grid-template-rows: 1fr 1fr; align-items: center; padding: 27px 8px; }
+    .flow { position: relative; height: 3px; background: var(--red); }
+    .flow::after {
+      content: "";
+      position: absolute;
+      right: -1px;
+      top: 50%;
+      border-top: 7px solid transparent;
+      border-bottom: 7px solid transparent;
+      border-left: 11px solid var(--red);
+      transform: translateY(-50%);
+    }
+    .flow span {
+      position: absolute;
+      left: 50%;
+      bottom: 8px;
+      color: var(--red-dark);
+      font-size: .67rem;
+      font-weight: 800;
+      white-space: nowrap;
+      transform: translateX(-50%);
+    }
+    .flow.inbound { background: var(--blue); }
+    .flow.inbound::after {
+      right: auto;
+      left: -1px;
+      border-right: 11px solid var(--blue);
+      border-left: 0;
+    }
+    .flow.inbound span { top: 8px; bottom: auto; color: var(--blue-dark); }
+
+    .spokes {
+      display: grid;
+      gap: 8px;
+      border: 1px solid #bfd0df;
+      border-left: 6px solid var(--blue);
+      border-radius: var(--radius);
+      padding: 11px;
+      background: var(--white);
+    }
+    .spoke { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 11px 12px; background: var(--surface); }
+    .spoke strong { display: block; color: var(--ink); font-size: .91rem; }
+    .spoke span { color: var(--muted); font-size: .72rem; }
+    .spoke b { color: var(--blue-dark); font-size: .67rem; }
+
+    .message-summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      border-left: 1px solid var(--line);
+      background: var(--white);
+    }
+    .message-path { display: grid; grid-template-columns: 8px 1fr; gap: 14px; padding: 15px 20px; }
+    .message-path + .message-path { border-left: 1px solid var(--line); }
+    .message-path i { width: 4px; height: 100%; background: var(--red); }
+    .message-path.inbound i { background: var(--blue); }
+    .message-path strong { display: block; margin-bottom: 3px; color: var(--ink); font-size: .82rem; }
+    .message-path p { color: var(--muted); font-size: .76rem; }
+
+    .lower {
+      display: grid;
+      grid-template-columns: 1fr 1.15fr;
+      gap: 34px;
+      margin-top: 32px;
+    }
+    .panel-heading { margin-bottom: 14px; }
+    .panel-heading p { margin-top: 5px; color: var(--muted); font-size: .8rem; }
+
+    .principles { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
+    .principle { min-height: 96px; border-bottom: 1px solid var(--line); padding: 14px 16px 14px 0; }
+    .principle:nth-child(odd) { padding-right: 24px; }
+    .principle:nth-child(even) { border-left: 1px solid var(--line); padding-left: 24px; }
+    .principle strong { display: block; margin-bottom: 4px; color: var(--ink); font-size: .82rem; }
+    .principle p { color: var(--muted); font-size: .75rem; }
+
+    .delivery { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .step { display: grid; grid-template-columns: 31px 1fr; gap: 13px; padding: 13px 17px; }
+    .step + .step { border-top: 1px solid var(--line); }
+    .step span { display: grid; place-items: center; width: 27px; height: 27px; border-radius: 50%; color: var(--white); background: var(--ink); font-size: .7rem; font-weight: 850; }
+    .step strong { display: block; color: var(--ink); font-size: .82rem; }
+    .step p { margin-top: 2px; color: var(--muted); font-size: .73rem; }
+
+    .decision-strip {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 20px;
+      align-items: center;
+      margin-top: 28px;
+      padding: 15px 18px;
+      color: #e6edf5;
+      background: var(--ink-2);
+    }
+    .decision-strip strong { color: var(--white); font-size: .82rem; }
+    .decision-strip p { font-size: .75rem; }
+    .decision-strip a { color: var(--white); font-size: .76rem; font-weight: 750; white-space: nowrap; }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 15px 32px;
+      border-top: 1px solid var(--line);
+      color: #76869a;
+      background: #fbfcfd;
+      font-size: .68rem;
+    }
+
+    @media (max-width: 1000px) {
+      main { padding: 34px 28px; }
+      .intro, .lower { grid-template-columns: 1fr; gap: 26px; }
+      .architecture { grid-template-columns: 1fr; gap: 12px; }
+      .system { min-height: auto; }
+      .connector { grid-template-columns: 1fr 1fr; grid-template-rows: auto; gap: 26px; padding: 11px 40px; }
+      .flow { transform: rotate(90deg); }
+      .flow span { display: none; }
+      .spokes { grid-template-columns: repeat(3, 1fr); }
+      .spoke { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 620px) {
+      .sheet { width: 100%; margin: 0; border: 0; border-radius: 0; }
+      .topbar, footer { align-items: flex-start; flex-direction: column; padding: 16px 20px; }
+      main { padding: 30px 20px; }
+      h1 { font-size: 2.65rem; }
+      .architecture-heading, .legend { align-items: flex-start; flex-direction: column; }
+      .architecture { padding: 13px; }
+      .spokes, .message-summary, .principles { grid-template-columns: 1fr; }
+      .message-path + .message-path, .principle:nth-child(even) { border-left: 0; }
+      .message-path + .message-path { border-top: 1px solid var(--line); }
+      .principle:nth-child(even) { padding-left: 0; }
+      .decision-strip { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      @page { size: A4 landscape; margin: 8mm; }
+      html, body { background: white; }
+      .sheet { width: 100%; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+      .topbar { padding: 10px 18px; }
+      main { padding: 20px 24px 16px; }
+      h1 { font-size: 34px; }
+      .lede { margin-top: 8px; font-size: 11px; }
+      .intro { grid-template-columns: 1.45fr .55fr; gap: 32px; }
+      .proposal { padding: 10px 12px; }
+      .architecture-wrap { margin-top: 17px; }
+      .architecture { grid-template-columns: .9fr .36fr 1fr .36fr .95fr; padding: 11px; }
+      .system { min-height: 150px; padding: 14px; }
+      .system.integration { padding: 12px; }
+      .system h3 { font-size: 15px; }
+      .system ul, .spoke strong { font-size: 9px; }
+      .lower { grid-template-columns: 1fr 1.15fr; gap: 22px; margin-top: 17px; }
+      .principle { min-height: 61px; padding-top: 7px; padding-bottom: 7px; }
+      .step { padding: 7px 11px; }
+      .decision-strip { margin-top: 15px; padding: 9px 12px; }
+      footer { padding: 8px 18px; }
+    }
+  </style>
+</head>
+<body>
+  <article class="sheet">
+    <header class="topbar">
+      <div>
+        <span class="brand">Twilio Flex + Multiple WABAs</span>
+        <p>High-level design</p>
+      </div>
+      <a href="./">Open the detailed implementation blueprint</a>
+    </header>
+
+    <main>
+      <section class="intro">
+        <div>
+          <h1>One Flex contact centre. Multiple WhatsApp businesses.</h1>
+          <p class="lede">Agents work from one Flex desktop while each WhatsApp Business Account keeps its own Twilio subaccount, sender and templates.</p>
+        </div>
+        <aside class="proposal">
+          <strong>Proposed approach</strong>
+          <p>Use Flex as the hub, connect each WABA as a spoke, and place a small integration layer between them to select the right account for every message.</p>
+        </aside>
+      </section>
+
+      <section class="architecture-wrap" aria-labelledby="architecture-title">
+        <div class="architecture-heading">
+          <div>
+            <h2 id="architecture-title">The account model</h2>
+            <p>One shared agent experience, with WhatsApp ownership kept separate.</p>
+          </div>
+          <div class="legend" aria-label="Message direction">
+            <span><i></i> Outbound message</span>
+            <span><i class="inbound"></i> Inbound webhook</span>
+          </div>
+        </div>
+
+        <div class="architecture">
+          <article class="system">
+            <span class="system-tag">Main Twilio account</span>
+            <h3>Flex contact centre</h3>
+            <ul>
+              <li>Shared agent desktop</li>
+              <li>Routing and agent work</li>
+              <li>Agent-visible conversation history</li>
+            </ul>
+          </article>
+
+          <div class="connector" aria-hidden="true">
+            <div class="flow"><span>Send</span></div>
+            <div class="flow inbound"><span>To Flex</span></div>
+          </div>
+
+          <article class="system integration">
+            <span class="system-tag">Customer-owned integration</span>
+            <h3>WABA routing service</h3>
+            <ul>
+              <li>Selects the correct subaccount</li>
+              <li>Uses that account's credentials</li>
+              <li>Connects messages back to Flex</li>
+            </ul>
+          </article>
+
+          <div class="connector" aria-hidden="true">
+            <div class="flow"><span>Selected WABA</span></div>
+            <div class="flow inbound"><span>Webhook</span></div>
+          </div>
+
+          <div class="spokes" aria-label="WhatsApp subaccounts">
+            <div class="spoke"><div><strong>Owl Inc.</strong><span>Sender and templates</span></div><b>WABA A</b></div>
+            <div class="spoke"><div><strong>Owl Shoes</strong><span>Sender and templates</span></div><b>WABA B</b></div>
+            <div class="spoke"><div><strong>Owl Bank</strong><span>Sender and templates</span></div><b>WABA N</b></div>
+          </div>
+        </div>
+
+        <div class="message-summary">
+          <div class="message-path">
+            <i></i>
+            <div><strong>Outbound</strong><p>Flex chooses or receives the WABA, and the integration sends through that WABA's subaccount.</p></div>
+          </div>
+          <div class="message-path inbound">
+            <i></i>
+            <div><strong>Inbound</strong><p>The receiving subaccount identifies the WABA, and the integration adds the message to the right Flex conversation.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="lower">
+        <div>
+          <div class="panel-heading">
+            <h2>Design principles</h2>
+            <p>The shape stays consistent even when operating rules differ.</p>
+          </div>
+          <div class="principles">
+            <article class="principle"><strong>Separate ownership</strong><p>Each WABA keeps its own sender, templates, traffic and account settings.</p></article>
+            <article class="principle"><strong>Flexible assignment</strong><p>A WABA may be chosen by queue, business context, agent choice or a combination.</p></article>
+            <article class="principle"><strong>Fixed conversation context</strong><p>Once a conversation starts, its WABA and sender do not change.</p></article>
+            <article class="principle"><strong>Configuration-led growth</strong><p>Further WABAs use the same account contract and are added without copying Flex.</p></article>
+          </div>
+        </div>
+
+        <div>
+          <div class="panel-heading">
+            <h2>Delivery at a glance</h2>
+            <p>Start with one WABA, prove the pattern, then add the others.</p>
+          </div>
+          <div class="delivery">
+            <div class="step"><span>1</span><div><strong>Agree the operating model</strong><p>Confirm sender rules, conversation boundaries and customer-data requirements.</p></div></div>
+            <div class="step"><span>2</span><div><strong>Build the shared integration</strong><p>Create the Flex plugin, WABA registry and account-aware messaging service.</p></div></div>
+            <div class="step"><span>3</span><div><strong>Connect and test the first WABA</strong><p>Validate inbound, replies, templates, delivery updates and agent routing.</p></div></div>
+            <div class="step"><span>4</span><div><strong>Add WABAs using the same pattern</strong><p>Register each subaccount, apply its sender policy, test it and roll it out.</p></div></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="decision-strip">
+        <strong>Implementation boundary</strong>
+        <p>The Flex plugin never receives subaccount credentials. The backend authorizes the WABA, validates its webhooks and calls the account-specific APIs.</p>
+        <a href="./">See the detailed blueprint</a>
+      </aside>
+    </main>
+
+    <footer>
+      <span>High-level design · Twilio Flex with multiple WABAs</span>
+      <span>Assumes Flex Conversations and the Interactions API. Confirm current Twilio and Meta behaviour before delivery.</span>
+    </footer>
+  </article>
+</body>
+</html>

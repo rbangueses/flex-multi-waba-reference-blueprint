@@ -2,6 +2,8 @@
 
 [View the published blueprint](https://rbangueses.github.io/flex-multi-waba-reference-blueprint/)
 
+[View the customer-facing high-level design](https://rbangueses.github.io/flex-multi-waba-reference-blueprint/high-level-design.html)
+
 ## What the blueprint covers
 
 - One Flex hub with multiple WABA-specific Twilio subaccounts
