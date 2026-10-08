@@ -304,12 +304,12 @@
     <main>
       <section class="intro">
         <div>
-          <h1>One Flex contact centre. Multiple WhatsApp businesses.</h1>
-          <p class="lede">Agents work from one Flex desktop while each WhatsApp Business Account keeps its own Twilio subaccount, sender and templates.</p>
+          <h1>One Flex contact centre for all your WhatsApp businesses.</h1>
+          <p class="lede">Agents work from one Flex desktop. Behind the scenes, each WhatsApp Business Account keeps its own Twilio subaccount, sender and templates.</p>
         </div>
         <aside class="proposal">
-          <strong>Proposed approach</strong>
-          <p>Use Flex as the hub, connect each WABA as a spoke, and place a small integration layer between them to select the right account for every message.</p>
+          <strong>The idea</strong>
+          <p>Flex sits at the centre. Each WABA connects through its own Twilio subaccount, and a lightweight integration makes sure every message uses the right one.</p>
         </aside>
       </section>
 
@@ -317,7 +317,7 @@
         <div class="architecture-heading">
           <div>
             <h2 id="architecture-title">The account model</h2>
-            <p>One shared agent experience, with WhatsApp ownership kept separate.</p>
+            <p>One place for agents to work, without combining the WhatsApp accounts behind the scenes.</p>
           </div>
           <div class="legend" aria-label="Message direction">
             <span><i></i> Outbound message</span>
@@ -330,9 +330,9 @@
             <span class="system-tag">Main Twilio account</span>
             <h3>Flex contact centre</h3>
             <ul>
-              <li>Shared agent desktop</li>
-              <li>Routing and agent work</li>
-              <li>Agent-visible conversation history</li>
+              <li>One desktop for agents</li>
+              <li>Routes work to the right team</li>
+              <li>Shows the conversation history</li>
             </ul>
           </article>
 
@@ -342,12 +342,12 @@
           </div>
 
           <article class="system integration">
-            <span class="system-tag">Customer-owned integration</span>
+            <span class="system-tag">Customer integration</span>
             <h3>WABA routing service</h3>
             <ul>
-              <li>Selects the correct subaccount</li>
-              <li>Uses that account's credentials</li>
-              <li>Connects messages back to Flex</li>
+              <li>Finds the WABA for the message</li>
+              <li>Uses the correct account credentials</li>
+              <li>Sends inbound messages back to Flex</li>
             </ul>
           </article>
 
@@ -366,11 +366,11 @@
         <div class="message-summary">
           <div class="message-path">
             <i></i>
-            <div><strong>Outbound</strong><p>Flex chooses or receives the WABA, and the integration sends through that WABA's subaccount.</p></div>
+            <div><strong>Outbound</strong><p>When an agent sends a message, the integration uses the WABA selected in Flex and sends from its subaccount.</p></div>
           </div>
           <div class="message-path inbound">
             <i></i>
-            <div><strong>Inbound</strong><p>The receiving subaccount identifies the WABA, and the integration adds the message to the right Flex conversation.</p></div>
+            <div><strong>Inbound</strong><p>When a customer sends a message, the receiving subaccount identifies the WABA and the integration adds it to the right Flex conversation.</p></div>
           </div>
         </div>
       </section>
@@ -378,41 +378,41 @@
       <section class="lower">
         <div>
           <div class="panel-heading">
-            <h2>Design principles</h2>
-            <p>The shape stays consistent even when operating rules differ.</p>
+            <h2>What stays consistent</h2>
+            <p>Companies can choose different sender rules without changing the overall setup.</p>
           </div>
           <div class="principles">
-            <article class="principle"><strong>Separate ownership</strong><p>Each WABA keeps its own sender, templates, traffic and account settings.</p></article>
-            <article class="principle"><strong>Flexible assignment</strong><p>A WABA may be chosen by queue, business context, agent choice or a combination.</p></article>
-            <article class="principle"><strong>Fixed conversation context</strong><p>Once a conversation starts, its WABA and sender do not change.</p></article>
-            <article class="principle"><strong>Configuration-led growth</strong><p>Further WABAs use the same account contract and are added without copying Flex.</p></article>
+            <article class="principle"><strong>Separate WhatsApp accounts</strong><p>Each WABA keeps its own sender, templates, traffic and account settings.</p></article>
+            <article class="principle"><strong>Different ways to choose a sender</strong><p>The WABA can come from the queue, customer context, an agent's choice or a mix of these.</p></article>
+            <article class="principle"><strong>One WABA per conversation</strong><p>Once a conversation starts, its WABA and sender stay the same.</p></article>
+            <article class="principle"><strong>Add WABAs without rebuilding Flex</strong><p>Each new WABA follows the same pattern and is added through configuration.</p></article>
           </div>
         </div>
 
         <div>
           <div class="panel-heading">
-            <h2>Delivery at a glance</h2>
+            <h2>How we would deliver it</h2>
             <p>Start with one WABA, prove the pattern, then add the others.</p>
           </div>
           <div class="delivery">
-            <div class="step"><span>1</span><div><strong>Agree the operating model</strong><p>Confirm sender rules, conversation boundaries and customer-data requirements.</p></div></div>
-            <div class="step"><span>2</span><div><strong>Build the shared integration</strong><p>Create the Flex plugin, WABA registry and account-aware messaging service.</p></div></div>
-            <div class="step"><span>3</span><div><strong>Connect and test the first WABA</strong><p>Validate inbound, replies, templates, delivery updates and agent routing.</p></div></div>
-            <div class="step"><span>4</span><div><strong>Add WABAs using the same pattern</strong><p>Register each subaccount, apply its sender policy, test it and roll it out.</p></div></div>
+            <div class="step"><span>1</span><div><strong>Agree how it should work</strong><p>Confirm which teams use each WABA, how senders are chosen and when a conversation ends.</p></div></div>
+            <div class="step"><span>2</span><div><strong>Build the shared connection</strong><p>Create the Flex plugin, WABA registry and messaging service that connects the accounts.</p></div></div>
+            <div class="step"><span>3</span><div><strong>Connect and test the first WABA</strong><p>Test inbound messages, agent replies, templates, delivery updates and routing.</p></div></div>
+            <div class="step"><span>4</span><div><strong>Add the remaining WABAs</strong><p>Connect each subaccount, apply its sender rules, test it and roll it out.</p></div></div>
           </div>
         </div>
       </section>
 
       <aside class="decision-strip">
-        <strong>Implementation boundary</strong>
-        <p>The Flex plugin never receives subaccount credentials. The backend authorizes the WABA, validates its webhooks and calls the account-specific APIs.</p>
+        <strong>Where credentials live</strong>
+        <p>Subaccount credentials stay in the backend. The Flex plugin only sees the WABA and sender information an agent needs.</p>
         <a href="./">See the detailed blueprint</a>
       </aside>
     </main>
 
     <footer>
       <span>High-level design · Twilio Flex with multiple WABAs</span>
-      <span>Assumes Flex Conversations and the Interactions API. Confirm current Twilio and Meta behaviour before delivery.</span>
+      <span>This design uses Flex Conversations and the Interactions API. Check current Twilio and Meta behaviour before delivery.</span>
     </footer>
   </article>
 </body>
